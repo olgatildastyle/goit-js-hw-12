@@ -1,7 +1,7 @@
 import iziToast from "izitoast";
 import "izitoast/dist/css/iziToast.min.css";
 
-import { getImagesByQuery } from "./js/pixabay-api.js";
+import { getImagesByQuery } from './js/pixabay-api.js';
 import {
   createGallery,
   clearGallery,
@@ -9,6 +9,7 @@ import {
   hideLoader,
   showLoadMoreButton,
   hideLoadMoreButton,
+  lightbox,
 } from "./js/render-functions.js";
 
 const form = document.querySelector(".form");
@@ -17,13 +18,14 @@ const loadMoreBtn = document.querySelector(".load-more");
 
 let currentQuery = "";
 let currentPage = 1;
-let totalHits = null;
+let totalHits = 0;
 
 form.addEventListener("submit", onSearch);
 loadMoreBtn.addEventListener("click", onLoadMore);
 
-async function onSearch(e) {
-  e.preventDefault();
+
+async function onSearch(event) {
+  event.preventDefault();
 
   currentQuery = input.value.trim();
 
@@ -31,6 +33,7 @@ async function onSearch(e) {
     iziToast.warning({
       title: "Warning",
       message: "Please enter a search query!",
+      position: "topRight",
     });
     return;
   }
@@ -42,24 +45,29 @@ async function onSearch(e) {
 
   try {
     const data = await getImagesByQuery(currentQuery, currentPage);
-
     totalHits = data.totalHits;
 
     if (data.hits.length === 0) {
       iziToast.error({
         title: "No results",
         message: "Sorry, no images match your search query.",
+        position: "topRight",
       });
       return;
     }
 
     createGallery(data.hits);
 
-    if (totalHits > 15) showLoadMoreButton();
-  } catch (err) {
+    const totalPages = Math.ceil(totalHits / 15);
+
+    if (currentPage < totalPages) {
+      showLoadMoreButton();
+    }
+  } catch (error) {
     iziToast.error({
       title: "Error",
       message: "Something went wrong. Try again later.",
+      position: "topRight",
     });
   } finally {
     hideLoader();
@@ -68,25 +76,39 @@ async function onSearch(e) {
 }
 
 async function onLoadMore() {
-  currentPage++;
+  currentPage += 1;
+
+  hideLoadMoreButton();  
   showLoader();
 
-  const data = await getImagesByQuery(currentQuery, currentPage);
-  createGallery(data.hits);
-  smoothScroll();
+  try {
+    const data = await getImagesByQuery(currentQuery, currentPage);
+    createGallery(data.hits);
+    smoothScroll();
 
-  const loaded = currentPage * 15;
+    const totalPages = Math.ceil(totalHits / 15);
 
-  if (loaded >= totalHits) {
-    hideLoadMoreButton();
-    iziToast.info({
-      title: "End",
-      message: "You've reached the end of search results.",
+    if (currentPage >= totalPages) {
+      iziToast.info({
+        title: "End",
+        message: "We're sorry, but you've reached the end of search results.",
+        position: "topRight",
+      });
+      return;
+    }
+
+    showLoadMoreButton();
+  } catch (error) {
+    iziToast.error({
+      title: "Error",
+      message: "Something went wrong during loading.",
+      position: "topRight",
     });
+  } finally {
+    hideLoader();   
   }
-
-  hideLoader();
 }
+
 
 function smoothScroll() {
   const cardHeight =
